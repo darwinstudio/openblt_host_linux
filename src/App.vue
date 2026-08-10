@@ -49,7 +49,7 @@ const logText = computed(() => logLines.value.join("\n"));
 // ---- 选文件（调用 Tauri dialog 插件）----
 async function pickFile() {
   const selected = await open({
-    filters: [{ name: "Motorola S-record", extensions: ["s19", "s28", "s37"] }],
+    filters: [{ name: "Motorola S-record", extensions: ["s19", "s28", "s37", "srec", "mot"] }],
   });
   if (typeof selected === "string") {
     firmwarePath.value = selected;
