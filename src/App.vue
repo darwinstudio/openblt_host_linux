@@ -1,14 +1,22 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, onMounted } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 
 const greetMsg = ref("");
 const name = ref("");
+const libVersion = ref("");
 
 async function greet() {
   // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
   greetMsg.value = await invoke("greet", { name: name.value });
 }
+
+// 验证 FFI 是否打通：调后端 version command，返回 LibOpenBLT 版本字符串
+async function loadVersion() {
+  libVersion.value = await invoke("version");
+}
+
+onMounted(loadVersion);
 </script>
 
 <template>
@@ -33,6 +41,8 @@ async function greet() {
       <button type="submit">Greet</button>
     </form>
     <p>{{ greetMsg }}</p>
+
+    <p>LibOpenBLT 版本：<strong>{{ libVersion }}</strong></p>
   </main>
 </template>
 
