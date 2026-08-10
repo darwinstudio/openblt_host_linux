@@ -1,170 +1,134 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, computed, onMounted } from "vue";
 import { invoke } from "@tauri-apps/api/core";
+import { open } from "@tauri-apps/plugin-dialog";
+import {
+  NConfigProvider,
+  NLayout,
+  NLayoutHeader,
+  NLayoutContent,
+  NCard,
+  NForm,
+  NFormItem,
+  NSelect,
+  NInput,
+  NInputNumber,
+  NButton,
+  NProgress,
+  NLog,
+  NSpace,
+} from "naive-ui";
 
-const greetMsg = ref("");
-const name = ref("");
+// ---- 库版本（验证 FFI 打通）----
 const libVersion = ref("");
-
-async function greet() {
-  // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-  greetMsg.value = await invoke("greet", { name: name.value });
-}
-
-// 验证 FFI 是否打通：调后端 version command，返回 LibOpenBLT 版本字符串
 async function loadVersion() {
   libVersion.value = await invoke("version");
 }
-
 onMounted(loadVersion);
+
+// ---- 设置状态 ----
+type Transport = "rs232" | "usb";
+const transport = ref<Transport>("rs232");
+const rs232Port = ref("/dev/ttyUSB0");
+const rs232Baud = ref(115200);
+const usbNote = "USB 使用固定 VID/PID 0x1D50/0x60AC，无需额外设置";
+const firmwarePath = ref("");
+
+const transportOptions = [
+  { label: "RS232 串口", value: "rs232" },
+  { label: "USB", value: "usb" },
+];
+
+// ---- 日志 ----
+const logLines = ref<string[]>([]);
+function log(msg: string) {
+  logLines.value.push(msg);
+}
+const logText = computed(() => logLines.value.join("\n"));
+
+// ---- 选文件（调用 Tauri dialog 插件）----
+async function pickFile() {
+  const selected = await open({
+    filters: [{ name: "Motorola S-record", extensions: ["s19", "s28", "s37"] }],
+  });
+  if (typeof selected === "string") {
+    firmwarePath.value = selected;
+    log(`已选择固件: ${selected}`);
+  }
+}
+
+// ---- 进度 ----
+const progress = ref(0);
+
+// ---- 烧录（骨架：后端 program command 在步骤 B 实现）----
+async function program() {
+  if (!firmwarePath.value) {
+    log("请先选择固件文件");
+    return;
+  }
+  log(`开始烧录（通道=${transport.value}）...`);
+  // TODO(B): 后端实现 program command 后取消下一行注释
+  // await invoke("program", {
+  //   transport: transport.value,
+  //   port: rs232Port.value,
+  //   baudrate: rs232Baud.value,
+  //   file: firmwarePath.value,
+  // });
+  log("（program command 待实现，见步骤 B）");
+}
 </script>
 
 <template>
-  <main class="container">
-    <h1>Welcome to Tauri + Vue</h1>
+  <n-config-provider>
+    <n-layout style="height: 100vh">
+      <n-layout-header bordered style="padding: 12px 24px; display: flex; align-items: baseline; gap: 16px">
+        <h2 style="margin: 0">OpenBLT 烧录工具</h2>
+        <span>LibOpenBLT 版本：{{ libVersion }}</span>
+      </n-layout-header>
 
-    <div class="row">
-      <a href="https://vite.dev" target="_blank">
-        <img src="/vite.svg" class="logo vite" alt="Vite logo" />
-      </a>
-      <a href="https://tauri.app" target="_blank">
-        <img src="/tauri.svg" class="logo tauri" alt="Tauri logo" />
-      </a>
-      <a href="https://vuejs.org/" target="_blank">
-        <img src="./assets/vue.svg" class="logo vue" alt="Vue logo" />
-      </a>
-    </div>
-    <p>Click on the Tauri, Vite, and Vue logos to learn more.</p>
+      <n-layout-content content-style="padding: 24px">
+        <n-space vertical :size="16">
+          <n-card title="设置">
+            <n-form label-placement="left" :label-width="100">
+              <n-form-item label="通道">
+                <n-select v-model:value="transport" :options="transportOptions" style="width: 240px" />
+              </n-form-item>
 
-    <form class="row" @submit.prevent="greet">
-      <input id="greet-input" v-model="name" placeholder="Enter a name..." />
-      <button type="submit">Greet</button>
-    </form>
-    <p>{{ greetMsg }}</p>
+              <template v-if="transport === 'rs232'">
+                <n-form-item label="串口设备">
+                  <n-input v-model:value="rs232Port" placeholder="/dev/ttyUSB0" style="width: 240px" />
+                </n-form-item>
+                <n-form-item label="波特率">
+                  <n-input-number v-model:value="rs232Baud" :min="1" style="width: 240px" />
+                </n-form-item>
+              </template>
 
-    <p>LibOpenBLT 版本：<strong>{{ libVersion }}</strong></p>
-  </main>
+              <n-form-item v-else label="USB">
+                <span>{{ usbNote }}</span>
+              </n-form-item>
+
+              <n-form-item label="固件文件">
+                <n-space>
+                  <n-input v-model:value="firmwarePath" placeholder="未选择" style="width: 320px" readonly />
+                  <n-button @click="pickFile">选择</n-button>
+                </n-space>
+              </n-form-item>
+            </n-form>
+
+            <n-space>
+              <n-button type="primary" @click="program">烧录</n-button>
+            </n-space>
+          </n-card>
+
+          <n-card title="进度">
+            <n-progress type="line" :percentage="progress" :height="20" />
+          </n-card>
+
+          <n-card title="日志">
+            <n-log :log="logText" style="height: 220px" />
+          </n-card>
+        </n-space>
+      </n-layout-content>
+    </n-layout>
+  </n-config-provider>
 </template>
-
-<style scoped>
-.logo.vite:hover {
-  filter: drop-shadow(0 0 2em #747bff);
-}
-
-.logo.vue:hover {
-  filter: drop-shadow(0 0 2em #249b73);
-}
-
-</style>
-<style>
-:root {
-  font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
-  font-size: 16px;
-  line-height: 24px;
-  font-weight: 400;
-
-  color: #0f0f0f;
-  background-color: #f6f6f6;
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  -webkit-text-size-adjust: 100%;
-}
-
-.container {
-  margin: 0;
-  padding-top: 10vh;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  text-align: center;
-}
-
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: 0.75s;
-}
-
-.logo.tauri:hover {
-  filter: drop-shadow(0 0 2em #24c8db);
-}
-
-.row {
-  display: flex;
-  justify-content: center;
-}
-
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-
-a:hover {
-  color: #535bf2;
-}
-
-h1 {
-  text-align: center;
-}
-
-input,
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  color: #0f0f0f;
-  background-color: #ffffff;
-  transition: border-color 0.25s;
-  box-shadow: 0 2px 2px rgba(0, 0, 0, 0.2);
-}
-
-button {
-  cursor: pointer;
-}
-
-button:hover {
-  border-color: #396cd8;
-}
-button:active {
-  border-color: #396cd8;
-  background-color: #e8e8e8;
-}
-
-input,
-button {
-  outline: none;
-}
-
-#greet-input {
-  margin-right: 5px;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    color: #f6f6f6;
-    background-color: #2f2f2f;
-  }
-
-  a:hover {
-    color: #24c8db;
-  }
-
-  input,
-  button {
-    color: #ffffff;
-    background-color: #0f0f0f98;
-  }
-  button:active {
-    background-color: #0f0f0f69;
-  }
-}
-
-</style>
