@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
   NConfigProvider,
@@ -24,7 +25,17 @@ const libVersion = ref("");
 async function loadVersion() {
   libVersion.value = await invoke("version");
 }
-onMounted(loadVersion);
+
+// ---- 后端事件监听（进度 / 日志）----
+onMounted(async () => {
+  await loadVersion();
+  await listen<number>("progress", (e) => {
+    progress.value = e.payload;
+  });
+  await listen<string>("log", (e) => {
+    log(e.payload);
+  });
+});
 
 // ---- 设置状态 ----
 type Transport = "rs232" | "usb";
@@ -60,21 +71,20 @@ async function pickFile() {
 // ---- 进度 ----
 const progress = ref(0);
 
-// ---- 烧录（骨架：后端 program command 在步骤 B 实现）----
+// ---- 烧录（调用后端 program command，进度/日志由事件回传）----
 async function program() {
   if (!firmwarePath.value) {
     log("请先选择固件文件");
     return;
   }
+  progress.value = 0;
   log(`开始烧录（通道=${transport.value}）...`);
-  // TODO(B): 后端实现 program command 后取消下一行注释
-  // await invoke("program", {
-  //   transport: transport.value,
-  //   port: rs232Port.value,
-  //   baudrate: rs232Baud.value,
-  //   file: firmwarePath.value,
-  // });
-  log("（program command 待实现，见步骤 B）");
+  await invoke("program", {
+    transport: transport.value,
+    port: rs232Port.value,
+    baudrate: rs232Baud.value,
+    file: firmwarePath.value,
+  });
 }
 </script>
 
