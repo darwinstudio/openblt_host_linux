@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, watch, nextTick } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import {
   NConfigProvider,
   NLayout,
   NLayoutHeader,
   NLayoutContent,
+  NLayoutFooter,
   NButton,
   NProgress,
   NInput,
@@ -22,6 +24,7 @@ import {
   NDescriptions,
   NDescriptionsItem,
   NAlert,
+  NLog,
 } from "naive-ui";
 
 // ---- 设置持久化（设置界面参数存到 localStorage，避免每次打开重填）----
@@ -75,10 +78,19 @@ async function loadVersion() {
 
 // ---- 后端事件监听（进度 / 日志）----
 const logLines = ref<string[]>([]);
-const latestLog = computed(() => logLines.value[logLines.value.length - 1] ?? "");
+const logText = computed(() => logLines.value.join("\n"));
 function log(msg: string) {
   logLines.value.push(msg);
 }
+function clearLog() {
+  logLines.value = [];
+}
+
+// 自动滚动日志到底部，避免手动下拉
+const logRef = ref<{ scrollToBottom: (silent?: boolean) => void } | null>(null);
+watch(logText, () => {
+  nextTick(() => logRef.value?.scrollToBottom());
+});
 
 onMounted(async () => {
   loadSettings();
@@ -130,6 +142,15 @@ const programming = ref(false);
 // ---- 设置界面开关 ----
 const showSettings = ref(false);
 
+// ---- 底部 GitHub 图标：打开仓库链接 ----
+async function openRepo() {
+  try {
+    await openUrl("https://github.com/darwinstudio/openblt_host_linux");
+  } catch (e) {
+    log(`打开仓库链接失败: ${e}`);
+  }
+}
+
 // ---- 烧录（调用后端 program command，进度/日志由事件回传）----
 async function program() {
   if (programming.value) return;
@@ -162,8 +183,8 @@ async function program() {
         <n-button style="margin-left: auto" @click="showSettings = true">设置</n-button>
       </n-layout-header>
 
-      <n-layout-content content-style="padding: 24px">
-        <n-space vertical :size="16">
+      <n-layout-content content-style="padding: 16px" style="overflow: hidden">
+        <n-space vertical :size="8">
           <!-- 控制区：选固件 + 烧录 -->
           <n-space align="center">
             <n-input
@@ -189,8 +210,8 @@ async function program() {
             <span>{{ configSummary }}</span>
           </n-space>
 
-          <!-- 固件信息面板（选完文件后由后端解析填充） -->
-          <n-card title="固件信息" size="small">
+          <!-- 固件信息面板（选完文件后由后端解析填充）；固定最小高度，选/不选文件时布局不跳动 -->
+          <n-card title="固件信息" size="small" style="min-height: 118px">
             <n-descriptions
               v-if="firmwareInfo && firmwareInfo.valid"
               :column="2"
@@ -215,28 +236,46 @@ async function program() {
             <span v-else style="color: var(--n-text-color-3, #888)">尚未选择固件文件</span>
           </n-card>
 
-          <!-- 进度条 + 日志固定一行 -->
-          <div style="display: flex; align-items: center; gap: 16px; width: 100%">
-            <n-progress
-              type="line"
-              :percentage="progress"
-              :height="18"
-              style="flex: 2; min-width: 0"
-            />
-            <span
-              class="log-line"
-              style="
-                flex: 3;
-                min-width: 0;
-                white-space: nowrap;
-                overflow: hidden;
-                text-overflow: ellipsis;
-              "
-              >{{ latestLog }}</span
-            >
-          </div>
+          <!-- 进度条单独一行 -->
+          <n-progress type="line" :percentage="progress" :height="18" />
+
+          <!-- 日志区域往下排，空时显示占位提示 -->
+          <n-card title="日志" size="small">
+            <template #header-extra>
+              <n-button size="small" @click="clearLog">清除</n-button>
+            </template>
+            <n-log v-if="logLines.length" ref="logRef" :log="logText" style="height: 48px" />
+            <span v-else style="color: var(--n-text-color-3, #888)">等待操作，日志将在此处显示…</span>
+          </n-card>
         </n-space>
       </n-layout-content>
+
+      <n-layout-footer
+        bordered
+        style="
+          padding: 6px 24px;
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          font-size: 13px;
+          color: var(--n-text-color-3, #888);
+        "
+      >
+        <span>版本 v0.2.0</span>
+        <span>|</span>
+        <span>作者：shenzan &amp; CodeBuddy</span>
+        <span
+          style="margin-left: auto; display: inline-flex; align-items: center; cursor: pointer"
+          title="在 GitHub 上查看"
+          @click="openRepo"
+        >
+          <svg viewBox="0 0 16 16" width="18" height="18" fill="currentColor">
+            <path
+              d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"
+            />
+          </svg>
+        </span>
+      </n-layout-footer>
     </n-layout>
 
     <!-- 设置二级界面：通道 / 串口设备 / 波特率 -->
