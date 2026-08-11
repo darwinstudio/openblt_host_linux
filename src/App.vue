@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, watch, nextTick } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -63,6 +63,12 @@ const logText = computed(() => logLines.value.join("\n"));
 function clearLog() {
   logLines.value = [];
 }
+
+// 自动滚动日志到底部，避免手动下拉查看
+const logRef = ref<{ scrollToBottom: (silent?: boolean) => void } | null>(null);
+watch(logText, () => {
+  nextTick(() => logRef.value?.scrollToBottom());
+});
 
 // ---- 选文件（调用 Tauri dialog 插件）----
 async function pickFile() {
@@ -150,7 +156,7 @@ async function program() {
             <template #header-extra>
               <n-button size="small" @click="clearLog">清除</n-button>
             </template>
-            <n-log :log="logText" style="height: 220px" />
+            <n-log ref="logRef" :log="logText" style="height: 220px" />
           </n-card>
         </n-space>
       </n-layout-content>
