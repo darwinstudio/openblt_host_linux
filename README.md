@@ -50,11 +50,11 @@
 # 安装前端依赖
 pnpm install
 
-# 开发模式（Vite + Rust sidecar）
-cargo tauri dev
+# 开发模式
+pnpm tauri dev
 
 # 构建 .deb 安装包
-cargo tauri build
+pnpm tauri build
 ```
 
 ## 使用说明
@@ -66,8 +66,8 @@ cargo tauri build
 
 ## 相关链接
 
-- [OpenBLT 官网](https://www.openblt.org/)
-- [OpenBLT GitHub](https://github.com/OpenBLT/OpenBLT)
+- [OpenBLT 官网](https://www.feaser.com/openblt/doku.php?id=homepage)
+- [OpenBLT GitHub](https://github.com/feaser/openblt)
 - [Tauri 2 文档](https://v2.tauri.app/)
 - [Naive UI](https://www.naiveui.com/)
 
