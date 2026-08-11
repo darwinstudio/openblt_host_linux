@@ -17,12 +17,19 @@ fn version() -> String {
 }
 
 /// 烧录命令：在后台线程跑完整 LibOpenBLT 流程，进度/日志通过事件回传前端。
+/// 无论成功失败都发 `done` 事件，前端据此解除按钮禁用，避免重复点击并发烧录。
 #[tauri::command]
 fn program(app: tauri::AppHandle, transport: String, port: String, baudrate: u32, file: String) {
     std::thread::spawn(move || {
-        if let Err(e) = run_program(&app, &transport, &port, baudrate, &file) {
-            let _ = app.emit("log", format!("错误: {}", e));
-            let _ = app.emit("progress", 0u8);
+        match run_program(&app, &transport, &port, baudrate, &file) {
+            Ok(()) => {
+                let _ = app.emit("done", true);
+            }
+            Err(e) => {
+                let _ = app.emit("log", format!("错误: {}", e));
+                let _ = app.emit("progress", 0u8);
+                let _ = app.emit("done", false);
+            }
         }
     });
 }
@@ -77,18 +84,38 @@ fn run_program(
             return Err("固件文件加载失败（可能不是合法的 S-record）".to_string());
         }
 
-        openblt::BltSessionInit(
-            openblt::BLT_SESSION_XCP_V10,
-            &session_settings as *const _ as *const c_void,
-            transport_type,
-            transport_settings_ptr,
-        );
-
-        let _ = app.emit("log", "正在连接目标...");
-        if openblt::BltSessionStart() != openblt::BLT_RESULT_OK {
+        // ---- 自动重试连接 ----
+        // 下位机 OpenBLT 复位后只有约 500ms 的 backdoor 窗口等待 CONNECT。
+        // 连不上就关闭会话、等一小会儿再重新初始化（重开串口）并重试，
+        // 直到命中窗口或达到最大重试次数。这样用户重新上电电路板时，
+        // 某一次重试会正好落进窗口从而连上，无需手动反复点“烧录”。
+        const RETRY_INTERVAL_MS: u64 = 300;
+        const MAX_RETRIES: u32 = 100; // ~30s，给用户足够时间重新上电
+        let mut connected = false;
+        for attempt in 1..=MAX_RETRIES {
+            let _ = app.emit(
+                "log",
+                format!("正在连接目标... (第 {}/{} 次)", attempt, MAX_RETRIES),
+            );
+            openblt::BltSessionInit(
+                openblt::BLT_SESSION_XCP_V10,
+                &session_settings as *const _ as *const c_void,
+                transport_type,
+                transport_settings_ptr,
+            );
+            if openblt::BltSessionStart() == openblt::BLT_RESULT_OK {
+                connected = true;
+                break;
+            }
             openblt::BltSessionTerminate();
+            std::thread::sleep(std::time::Duration::from_millis(RETRY_INTERVAL_MS));
+        }
+        if !connected {
             openblt::BltFirmwareTerminate();
-            return Err("连接目标失败".to_string());
+            return Err(format!(
+                "连接目标失败（已重试 {} 次，请确认已重新上电或检查串口/固件）",
+                MAX_RETRIES
+            ));
         }
         let _ = app.emit("log", "已连接，开始烧录");
 

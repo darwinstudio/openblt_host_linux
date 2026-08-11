@@ -35,6 +35,10 @@ onMounted(async () => {
   await listen<string>("log", (e) => {
     log(e.payload);
   });
+  // 后端烧录结束（成功/失败）后解除按钮禁用，避免重复点击并发烧录
+  await listen<boolean>("done", () => {
+    programming.value = false;
+  });
 });
 
 // ---- 设置状态 ----
@@ -74,12 +78,17 @@ async function pickFile() {
 // ---- 进度 ----
 const progress = ref(0);
 
+// ---- 烧录中标志（防止按钮被反复点击产生并发烧录）----
+const programming = ref(false);
+
 // ---- 烧录（调用后端 program command，进度/日志由事件回传）----
 async function program() {
+  if (programming.value) return;
   if (!firmwarePath.value) {
     log("请先选择固件文件");
     return;
   }
+  programming.value = true;
   progress.value = 0;
   log(`开始烧录（通道=${transport.value}）...`);
   await invoke("program", {
@@ -129,7 +138,7 @@ async function program() {
             </n-form>
 
             <n-space>
-              <n-button type="primary" @click="program">烧录</n-button>
+              <n-button type="primary" :disabled="programming" :loading="programming" @click="program">烧录</n-button>
             </n-space>
           </n-card>
 
