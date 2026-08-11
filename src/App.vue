@@ -56,6 +56,9 @@ function log(msg: string) {
   logLines.value.push(msg);
 }
 const logText = computed(() => logLines.value.join("\n"));
+function clearLog() {
+  logLines.value = [];
+}
 
 // ---- 选文件（调用 Tauri dialog 插件）----
 async function pickFile() {
@@ -135,6 +138,9 @@ async function program() {
           </n-card>
 
           <n-card title="日志">
+            <template #header-extra>
+              <n-button size="small" @click="clearLog">清除</n-button>
+            </template>
             <n-log :log="logText" style="height: 220px" />
           </n-card>
         </n-space>
