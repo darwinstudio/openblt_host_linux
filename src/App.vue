@@ -18,6 +18,10 @@ import {
   NSelect,
   NInputNumber,
   NSpace,
+  NCard,
+  NDescriptions,
+  NDescriptionsItem,
+  NAlert,
 } from "naive-ui";
 
 // ---- 设置持久化（设置界面参数存到 localStorage，避免每次打开重填）----
@@ -57,6 +61,12 @@ const transportOptions = [
 ];
 const usbNote = "USB 使用固定 VID/PID 0x1D50/0x60AC，无需额外设置";
 
+// 主界面顶部展示当前配置概览，避免每次进设置查看
+const configSummary = computed(() => {
+  if (transport.value === "usb") return "USB（VID/PID 0x1D50/0x60AC）";
+  return `RS232 | ${rs232Port.value} | ${rs232Baud.value} bps`;
+});
+
 // ---- 库版本（验证 FFI 打通）----
 const libVersion = ref("");
 async function loadVersion() {
@@ -86,6 +96,16 @@ onMounted(async () => {
 });
 
 // ---- 选文件（调用 Tauri dialog 插件）----
+interface FirmwareInfo {
+  valid: boolean;
+  error: string;
+  segment_count: number;
+  total_bytes: number;
+  start_address: number;
+  end_address: number;
+}
+const firmwareInfo = ref<FirmwareInfo | null>(null);
+
 const firmwarePath = ref("");
 async function pickFile() {
   const selected = await open({
@@ -94,6 +114,12 @@ async function pickFile() {
   if (typeof selected === "string") {
     firmwarePath.value = selected;
     log(`已选择固件: ${selected}`);
+    // 解析固件概览，填充主界面固件信息面板
+    try {
+      firmwareInfo.value = await invoke<FirmwareInfo>("firmware_info", { file: selected });
+    } catch (e) {
+      firmwareInfo.value = { valid: false, error: String(e), segment_count: 0, total_bytes: 0, start_address: 0, end_address: 0 };
+    }
   }
 }
 
@@ -156,6 +182,38 @@ async function program() {
               烧录
             </n-button>
           </n-space>
+
+          <!-- 当前配置概览 -->
+          <n-space align="center">
+            <span style="color: var(--n-text-color-3, #888)">当前配置：</span>
+            <span>{{ configSummary }}</span>
+          </n-space>
+
+          <!-- 固件信息面板（选完文件后由后端解析填充） -->
+          <n-card title="固件信息" size="small">
+            <n-descriptions
+              v-if="firmwareInfo && firmwareInfo.valid"
+              :column="2"
+              bordered
+              size="small"
+              label-placement="left"
+            >
+              <n-descriptions-item label="段数">{{ firmwareInfo.segment_count }}</n-descriptions-item>
+              <n-descriptions-item label="总大小"
+                >{{ firmwareInfo.total_bytes }} 字节</n-descriptions-item
+              >
+              <n-descriptions-item label="起始地址"
+                >0x{{ firmwareInfo.start_address.toString(16).toUpperCase() }}</n-descriptions-item
+              >
+              <n-descriptions-item label="结束地址"
+                >0x{{ firmwareInfo.end_address.toString(16).toUpperCase() }}</n-descriptions-item
+              >
+            </n-descriptions>
+            <n-alert v-else-if="firmwareInfo" type="error" :show-icon="true">{{
+              firmwareInfo.error
+            }}</n-alert>
+            <span v-else style="color: var(--n-text-color-3, #888)">尚未选择固件文件</span>
+          </n-card>
 
           <!-- 进度条 + 日志固定一行 -->
           <div style="display: flex; align-items: center; gap: 16px; width: 100%">

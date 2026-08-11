@@ -34,6 +34,76 @@ fn program(app: tauri::AppHandle, transport: String, port: String, baudrate: u32
     });
 }
 
+/// 解析固件文件并回传概览信息（段数、总字节、地址范围），不建立会话、不烧录。
+/// 前端在选完文件后调用，用于在主界面展示固件信息、填充界面。
+#[derive(serde::Serialize)]
+struct FirmwareInfo {
+    valid: bool,
+    error: String,
+    segment_count: u32,
+    total_bytes: u32,
+    start_address: u32,
+    end_address: u32,
+}
+
+#[tauri::command]
+fn firmware_info(file: String) -> FirmwareInfo {
+    let c_file = match CString::new(file) {
+        Ok(c) => c,
+        Err(_) => {
+            return FirmwareInfo {
+                valid: false,
+                error: "文件名包含非法字符(NUL)".to_string(),
+                segment_count: 0,
+                total_bytes: 0,
+                start_address: 0,
+                end_address: 0,
+            }
+        }
+    };
+    unsafe {
+        openblt::BltFirmwareInit(openblt::BLT_FIRMWARE_PARSER_SRECORD);
+        if openblt::BltFirmwareLoadFromFile(c_file.as_ptr(), 0) != openblt::BLT_RESULT_OK {
+            openblt::BltFirmwareTerminate();
+            return FirmwareInfo {
+                valid: false,
+                error: "固件文件加载失败（可能不是合法的 S-record）".to_string(),
+                segment_count: 0,
+                total_bytes: 0,
+                start_address: 0,
+                end_address: 0,
+            };
+        }
+        let seg_count = openblt::BltFirmwareGetSegmentCount();
+        let mut total: u32 = 0;
+        let mut start: u32 = u32::MAX;
+        let mut end: u32 = 0;
+        for i in 0..seg_count {
+            let mut addr: u32 = 0;
+            let mut len: u32 = 0;
+            let data = openblt::BltFirmwareGetSegment(i, &mut addr, &mut len);
+            if !data.is_null() && len > 0 {
+                total += len;
+                if addr < start {
+                    start = addr;
+                }
+                if addr + len > end {
+                    end = addr + len;
+                }
+            }
+        }
+        openblt::BltFirmwareTerminate();
+        FirmwareInfo {
+            valid: true,
+            error: String::new(),
+            segment_count: seg_count,
+            total_bytes: total,
+            start_address: if start == u32::MAX { 0 } else { start },
+            end_address: end,
+        }
+    }
+}
+
 fn run_program(
     app: &tauri::AppHandle,
     transport: &str,
@@ -190,7 +260,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![greet, version, program])
+        .invoke_handler(tauri::generate_handler![greet, version, program, firmware_info])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
