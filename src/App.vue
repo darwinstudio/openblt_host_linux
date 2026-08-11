@@ -210,42 +210,58 @@ async function program() {
             <span>{{ configSummary }}</span>
           </n-space>
 
-          <!-- 固件信息面板（选完文件后由后端解析填充）；固定最小高度，选/不选文件时布局不跳动 -->
+          <!-- 固件信息面板：默认就渲染表格结构，未选文件显示占位，选/不选高度一致 -->
           <n-card title="固件信息" size="small" style="min-height: 118px">
-            <n-descriptions
-              v-if="firmwareInfo && firmwareInfo.valid"
-              :column="2"
-              bordered
-              size="small"
-              label-placement="left"
+            <n-alert
+              v-if="firmwareInfo && !firmwareInfo.valid"
+              type="error"
+              :show-icon="true"
+              >{{ firmwareInfo.error }}</n-alert
             >
-              <n-descriptions-item label="段数">{{ firmwareInfo.segment_count }}</n-descriptions-item>
+            <n-descriptions v-else :column="2" bordered size="small" label-placement="left">
+              <n-descriptions-item label="段数"
+                >{{ firmwareInfo ? firmwareInfo.segment_count : "—" }}</n-descriptions-item
+              >
               <n-descriptions-item label="总大小"
-                >{{ firmwareInfo.total_bytes }} 字节</n-descriptions-item
+                >{{ firmwareInfo ? firmwareInfo.total_bytes + " 字节" : "—" }}</n-descriptions-item
               >
               <n-descriptions-item label="起始地址"
-                >0x{{ firmwareInfo.start_address.toString(16).toUpperCase() }}</n-descriptions-item
+                >{{
+                  firmwareInfo
+                    ? "0x" + firmwareInfo.start_address.toString(16).toUpperCase()
+                    : "—"
+                }}</n-descriptions-item
               >
               <n-descriptions-item label="结束地址"
-                >0x{{ firmwareInfo.end_address.toString(16).toUpperCase() }}</n-descriptions-item
+                >{{
+                  firmwareInfo
+                    ? "0x" + firmwareInfo.end_address.toString(16).toUpperCase()
+                    : "—"
+                }}</n-descriptions-item
               >
             </n-descriptions>
-            <n-alert v-else-if="firmwareInfo" type="error" :show-icon="true">{{
-              firmwareInfo.error
-            }}</n-alert>
-            <span v-else style="color: var(--n-text-color-3, #888)">尚未选择固件文件</span>
           </n-card>
 
           <!-- 进度条单独一行 -->
           <n-progress type="line" :percentage="progress" :height="18" />
 
-          <!-- 日志区域往下排，空时显示占位提示 -->
+          <!-- 日志区域往下排；内容区固定高度，清除后不收缩 -->
           <n-card title="日志" size="small">
             <template #header-extra>
               <n-button size="small" @click="clearLog">清除</n-button>
             </template>
-            <n-log v-if="logLines.length" ref="logRef" :log="logText" style="height: 48px" />
-            <span v-else style="color: var(--n-text-color-3, #888)">等待操作，日志将在此处显示…</span>
+            <div style="height: 48px">
+              <n-log v-if="logLines.length" ref="logRef" :log="logText" style="height: 100%" />
+              <span
+                v-else
+                style="
+                  color: var(--n-text-color-3, #888);
+                  display: inline-block;
+                  line-height: 48px;
+                "
+                >等待操作，日志将在此处显示…</span
+              >
+            </div>
           </n-card>
         </n-space>
       </n-layout-content>
@@ -263,7 +279,7 @@ async function program() {
       >
         <span>版本 v0.2.0</span>
         <span>|</span>
-        <span>作者：shenzan &amp; CodeBuddy</span>
+        <span>作者：shenzan &amp; Hy3</span>
         <span
           style="margin-left: auto; display: inline-flex; align-items: center; cursor: pointer"
           title="在 GitHub 上查看"
