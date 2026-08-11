@@ -24,4 +24,7 @@ fn main() {
     // 2) 设置 rpath：先在二进制同目录($ORIGIN)找，再回退到 src-tauri 绝对目录找
     println!("cargo:rustc-link-arg=-Wl,-rpath,$ORIGIN");
     println!("cargo:rustc-link-arg=-Wl,-rpath,{}", manifest_dir);
+    // 3) 打包(deb)后二进制通常装在 /usr/lib/<app>/，把 .so 固定放到该目录并写死
+    //    rpath，确保安装后的程序一定能找到 libopenblt.so（开发态该目录不存在，会被跳过）。
+    println!("cargo:rustc-link-arg=-Wl,-rpath,/usr/lib/openblt_host_linux");
 }
