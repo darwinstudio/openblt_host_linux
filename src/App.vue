@@ -280,6 +280,8 @@ async function program() {
         <span>版本 v0.2.0</span>
         <span>|</span>
         <span>作者：shenzan &amp; Hy3</span>
+        <span>|</span>
+        <span>基于 OpenBLT</span>
         <span
           style="margin-left: auto; display: inline-flex; align-items: center; cursor: pointer"
           title="在 GitHub 上查看"
