@@ -1,6 +1,6 @@
 # OpenBLT 烧录工具
 
-基于 [OpenBLT](https://www.openblt.org/) 的桌面固件烧录工具，支持 RS232 串口和 USB 两种通信方式，通过 XCP 协议烧录 Motorola S-record 格式固件到目标板。
+基于 [OpenBLT](https://www.feaser.com/openblt/doku.php?id=homepage) 的桌面固件烧录工具，支持 RS232 串口和 USB 两种通信方式，通过 XCP 协议烧录 Motorola S-record 格式固件到目标板。
 
 ## 功能
 
