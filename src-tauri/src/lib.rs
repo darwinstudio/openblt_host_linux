@@ -140,12 +140,15 @@ fn run_program(
         timeout_t1: 1000,
         timeout_t3: 2000,
         timeout_t4: 10000,
-        timeout_t5: 1000,
-        timeout_t6: 1000,
+        // 擦除/写入超时：目标板 flash 擦写偶尔超过 1s，导致间歇性「擦除失败/写入失败」，
+        // 加大到 5s 留足余量（如仍超时再上调）。
+        timeout_t5: 5000,
+        timeout_t6: 5000,
         timeout_t7: 2000,
         seed_key_file: ptr::null(),
-        connect_mode: 0,
-        bypass_firmware_start: 0,
+        connect_mode: 0, // BLT_CONNECT_MODE_NORMAL
+        // 1 = BLT_BYPASS_FIRMWARE_START_DISABLED：烧录完成后启动新固件（0 会让 bootloader 停留在 bootloader）
+        bypass_firmware_start: 1,
     };
 
     // rs232_settings 必须在函数作用域内保持存活（BltSessionInit 取指针）
