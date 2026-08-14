@@ -64,6 +64,13 @@ const transportOptions = [
 ];
 const usbNote = "USB 使用固定 VID/PID 0x1D50/0x60AC，无需额外设置";
 
+// ---- 串口自动扫描 ----
+const portOptions = ref<{ label: string; value: string }[]>([]);
+async function scanPorts() {
+  const ports = await invoke<string[]>("list_serial_ports");
+  portOptions.value = ports.map((p) => ({ label: p, value: p }));
+}
+
 // 主界面顶部展示当前配置概览，避免每次进设置查看
 const configSummary = computed(() => {
   if (transport.value === "usb") return "USB（VID/PID 0x1D50/0x60AC）";
@@ -94,6 +101,7 @@ watch(logText, () => {
 
 onMounted(async () => {
   loadSettings();
+  scanPorts();
   await loadVersion();
   await listen<number>("progress", (e) => {
     progress.value = e.payload;
@@ -141,6 +149,10 @@ const programming = ref(false);
 
 // ---- 设置界面开关 ----
 const showSettings = ref(false);
+function openSettings() {
+  showSettings.value = true;
+  scanPorts();
+}
 
 // ---- 底部 GitHub 图标：打开仓库链接 ----
 async function openRepo() {
@@ -189,7 +201,7 @@ async function cancelProgram() {
       >
         <h2 style="margin: 0">OpenBLT 烧录工具</h2>
         <span>LibOpenBLT 版本：{{ libVersion }}</span>
-        <n-button style="margin-left: auto" :disabled="programming" @click="showSettings = true">设置</n-button>
+        <n-button style="margin-left: auto" :disabled="programming" @click="openSettings">设置</n-button>
       </n-layout-header>
 
       <n-layout-content content-style="padding: 16px" style="overflow: hidden">
@@ -328,7 +340,17 @@ async function cancelProgram() {
 
           <template v-if="transport === 'rs232'">
             <n-form-item label="串口设备">
-              <n-input v-model:value="rs232Port" placeholder="/dev/ttyUSB0" style="width: 100%" />
+              <n-space>
+                <n-select
+                  v-model:value="rs232Port"
+                  :options="portOptions"
+                  filterable
+                  tag
+                  placeholder="/dev/ttyUSB0"
+                  style="width: 220px"
+                />
+                <n-button size="small" @click="scanPorts">刷新</n-button>
+              </n-space>
             </n-form-item>
             <n-form-item label="波特率">
               <n-input-number v-model:value="rs232Baud" :min="1" style="width: 100%" />

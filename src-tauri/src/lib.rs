@@ -21,6 +21,24 @@ fn cancel() {
     CANCEL.store(true, Ordering::SeqCst);
 }
 
+/// 扫描 /dev 下的 USB 串口设备（ttyUSB* / ttyACM*），返回绝对路径列表。
+#[tauri::command]
+fn list_serial_ports() -> Vec<String> {
+    let mut ports = Vec::new();
+    if let Ok(entries) = std::fs::read_dir("/dev") {
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            if let Some(name) = name.to_str() {
+                if name.starts_with("ttyUSB") || name.starts_with("ttyACM") {
+                    ports.push(format!("/dev/{name}"));
+                }
+            }
+        }
+    }
+    ports.sort();
+    ports
+}
+
 /// 烧录命令：在后台线程跑完整 LibOpenBLT 流程，进度/日志通过事件回传前端。
 /// 无论成功失败都发 `done` 事件，前端据此解除按钮禁用，避免重复点击并发烧录。
 #[tauri::command]
@@ -273,7 +291,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![version, program, cancel, firmware_info])
+        .invoke_handler(tauri::generate_handler![version, program, cancel, list_serial_ports, firmware_info])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
