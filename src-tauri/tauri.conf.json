@@ -26,6 +26,10 @@
   "bundle": {
     "active": true,
     "targets": "deb",
+    "shortDescription": "基于 OpenBLT 的固件烧录工具",
+    "longDescription": "基于 OpenBLT 的桌面固件烧录工具，支持 RS232 串口和 USB 通信，通过 XCP 协议烧录 S-record 格式固件到目标板。",
+    "publisher": "shenzan & Hy3",
+    "homepage": "https://github.com/darwinstudio/openblt_host_linux",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -35,6 +39,7 @@
     ],
     "linux": {
       "deb": {
+        "section": "electronics",
         "files": {
           "/usr/lib/openblt_host_linux/libopenblt.so": "libopenblt.so"
         }
