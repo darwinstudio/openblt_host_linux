@@ -3,6 +3,7 @@ mod openblt;
 use std::ffi::CString;
 use std::os::raw::c_void;
 use std::ptr;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::Emitter;
 
 /// 验证 FFI 是否打通：返回 LibOpenBLT 版本字符串。
@@ -11,10 +12,20 @@ fn version() -> String {
     openblt::version_string()
 }
 
+/// 用户主动取消：烧录线程在重试/写入循环里轮询该标志。
+// ponytail: 全局标志，一次只跑一个烧录会话，够用；并发会话时再改成 per-session 句柄。
+static CANCEL: AtomicBool = AtomicBool::new(false);
+
+#[tauri::command]
+fn cancel() {
+    CANCEL.store(true, Ordering::SeqCst);
+}
+
 /// 烧录命令：在后台线程跑完整 LibOpenBLT 流程，进度/日志通过事件回传前端。
 /// 无论成功失败都发 `done` 事件，前端据此解除按钮禁用，避免重复点击并发烧录。
 #[tauri::command]
 fn program(app: tauri::AppHandle, transport: String, port: String, baudrate: u32, file: String) {
+    CANCEL.store(false, Ordering::SeqCst);
     std::thread::spawn(move || {
         match run_program(&app, &transport, &port, baudrate, &file) {
             Ok(()) => {
@@ -155,6 +166,10 @@ fn run_program(
         const MAX_RETRIES: u32 = 100; // ~30s，给用户足够时间重新上电
         let mut connected = false;
         for attempt in 1..=MAX_RETRIES {
+            if CANCEL.load(Ordering::SeqCst) {
+                openblt::BltFirmwareTerminate();
+                return Err("已取消".to_string());
+            }
             let _ = app.emit(
                 "log",
                 format!("正在连接目标... (第 {}/{} 次)", attempt, MAX_RETRIES),
@@ -213,6 +228,12 @@ fn run_program(
             let slice = std::slice::from_raw_parts(data, len as usize);
             let mut offset: u32 = 0;
             while offset < len {
+                if CANCEL.load(Ordering::SeqCst) {
+                    openblt::BltSessionStop();
+                    openblt::BltSessionTerminate();
+                    openblt::BltFirmwareTerminate();
+                    return Err("已取消".to_string());
+                }
                 let chunk = std::cmp::min(256, len - offset);
                 let r = openblt::BltSessionWriteData(
                     addr + offset,
@@ -252,7 +273,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![version, program, firmware_info])
+        .invoke_handler(tauri::generate_handler![version, program, cancel, firmware_info])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

@@ -169,6 +169,15 @@ async function program() {
     file: firmwarePath.value,
   });
 }
+
+// ---- 停止烧录（后端在重试/写入循环里轮询取消标志）----
+const cancelling = ref(false);
+async function cancelProgram() {
+  if (cancelling.value) return;
+  cancelling.value = true;
+  await invoke("cancel");
+  log("已请求停止，正在取消…");
+}
 </script>
 
 <template>
@@ -180,7 +189,7 @@ async function program() {
       >
         <h2 style="margin: 0">OpenBLT 烧录工具</h2>
         <span>LibOpenBLT 版本：{{ libVersion }}</span>
-        <n-button style="margin-left: auto" @click="showSettings = true">设置</n-button>
+        <n-button style="margin-left: auto" :disabled="programming" @click="showSettings = true">设置</n-button>
       </n-layout-header>
 
       <n-layout-content content-style="padding: 16px" style="overflow: hidden">
@@ -193,7 +202,7 @@ async function program() {
               readonly
               style="width: 360px"
             />
-            <n-button @click="pickFile">选择固件</n-button>
+            <n-button :disabled="programming" @click="pickFile">选择固件</n-button>
             <n-button
               type="primary"
               :disabled="programming"
@@ -201,6 +210,15 @@ async function program() {
               @click="program"
             >
               烧录
+            </n-button>
+            <n-button
+              v-if="programming"
+              type="error"
+              :disabled="cancelling"
+              :loading="cancelling"
+              @click="cancelProgram"
+            >
+              停止
             </n-button>
           </n-space>
 
