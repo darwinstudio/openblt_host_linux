@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "openblt_host_linux",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "identifier": "com.mint.openblt-host-linux",
   "build": {
     "beforeDevCommand": "pnpm dev",

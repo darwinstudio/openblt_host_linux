@@ -307,7 +307,7 @@ async function cancelProgram() {
           color: var(--n-text-color-3, #888);
         "
       >
-        <span>版本 v0.2.0</span>
+        <span>版本 v0.3.0</span>
         <span>|</span>
         <span>作者：shenzan &amp; Hy3</span>
         <span>|</span>
