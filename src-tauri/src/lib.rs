@@ -5,11 +5,6 @@ use std::os::raw::c_void;
 use std::ptr;
 use tauri::Emitter;
 
-#[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
-}
-
 /// 验证 FFI 是否打通：返回 LibOpenBLT 版本字符串。
 #[tauri::command]
 fn version() -> String {
@@ -46,33 +41,30 @@ struct FirmwareInfo {
     end_address: u32,
 }
 
+impl FirmwareInfo {
+    fn err(msg: &str) -> Self {
+        Self {
+            valid: false,
+            error: msg.to_string(),
+            segment_count: 0,
+            total_bytes: 0,
+            start_address: 0,
+            end_address: 0,
+        }
+    }
+}
+
 #[tauri::command]
 fn firmware_info(file: String) -> FirmwareInfo {
     let c_file = match CString::new(file) {
         Ok(c) => c,
-        Err(_) => {
-            return FirmwareInfo {
-                valid: false,
-                error: "文件名包含非法字符(NUL)".to_string(),
-                segment_count: 0,
-                total_bytes: 0,
-                start_address: 0,
-                end_address: 0,
-            }
-        }
+        Err(_) => return FirmwareInfo::err("文件名包含非法字符(NUL)"),
     };
     unsafe {
         openblt::BltFirmwareInit(openblt::BLT_FIRMWARE_PARSER_SRECORD);
         if openblt::BltFirmwareLoadFromFile(c_file.as_ptr(), 0) != openblt::BLT_RESULT_OK {
             openblt::BltFirmwareTerminate();
-            return FirmwareInfo {
-                valid: false,
-                error: "固件文件加载失败（可能不是合法的 S-record）".to_string(),
-                segment_count: 0,
-                total_bytes: 0,
-                start_address: 0,
-                end_address: 0,
-            };
+            return FirmwareInfo::err("固件文件加载失败（可能不是合法的 S-record）");
         }
         let seg_count = openblt::BltFirmwareGetSegmentCount();
         let mut total: u32 = 0;
@@ -260,7 +252,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![greet, version, program, firmware_info])
+        .invoke_handler(tauri::generate_handler![version, program, firmware_info])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
