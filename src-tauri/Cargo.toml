@@ -2,7 +2,7 @@
 name = "openblt_host_linux"
 version = "0.3.0"
 description = "A Tauri App"
-authors = ["you"]
+authors = ["shenzan & Hy3"]
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
